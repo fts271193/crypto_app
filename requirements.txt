@@ -1,0 +1,16 @@
+# GUI kutubxonalari
+customtkinter==5.2.1
+Pillow>=10.0.0
+
+# Kriptografiya kutubxonalari
+pycryptodome>=3.19.0
+cryptography>=41.0.0
+
+# GOST Kuznechik uchun (ixtiyoriy - AES-256 bilan emulatsiya qilinadi)
+# gostcrypto>=1.2.6
+
+# Vizualizatsiya
+matplotlib>=3.8.0
+
+# Utilities
+pathlib>=1.0.1
