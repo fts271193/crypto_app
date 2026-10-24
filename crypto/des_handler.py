@@ -5,10 +5,12 @@ from Crypto.Cipher import DES
 from Crypto.Random import get_random_bytes
 from Crypto.Util.Padding import pad, unpad
 import binascii
+from crypto.authenticated_cbc import AuthenticatedCBC
 
 class DESHandler:
     KEY_SIZE = 8  # 64 bit (56 bit effective)
     BLOCK_SIZE = 8  # 64 bit
+    MAGIC = b'DESC1'
     
     @staticmethod
     def generate_key():
@@ -50,8 +52,9 @@ class DESHandler:
         padded_data = pad(data, DESHandler.BLOCK_SIZE)
         encrypted_data = cipher.encrypt(padded_data)
         
-        # IV + encrypted_data
-        result = iv + encrypted_data
+        result = AuthenticatedCBC.pack(
+            DESHandler.MAGIC, key, iv, encrypted_data
+        )
         iv_hex = binascii.hexlify(iv).decode('utf-8')
         
         return result, iv_hex
@@ -72,11 +75,13 @@ class DESHandler:
         if len(key) != DESHandler.KEY_SIZE:
             raise ValueError(f"Kalit uzunligi {DESHandler.KEY_SIZE} bayt bo'lishi kerak")
         
-        # IV ni ajratish
-        iv = encrypted_data[:DESHandler.BLOCK_SIZE]
-        ciphertext = encrypted_data[DESHandler.BLOCK_SIZE:]
-        
-        # Deshifrlash
+        iv, ciphertext = AuthenticatedCBC.unpack(
+            encrypted_data,
+            DESHandler.MAGIC,
+            key,
+            DESHandler.BLOCK_SIZE,
+            DESHandler.BLOCK_SIZE,
+        )
         cipher = DES.new(key, DES.MODE_CBC, iv)
         decrypted_data = cipher.decrypt(ciphertext)
         
@@ -84,7 +89,7 @@ class DESHandler:
         try:
             unpadded_data = unpad(decrypted_data, DESHandler.BLOCK_SIZE)
             return unpadded_data
-        except ValueError as e:
+        except ValueError:
             raise ValueError("❌ Kalit noto'g'ri yoki fayl buzilgan.")
     
     @staticmethod
@@ -94,7 +99,7 @@ class DESHandler:
             'name': 'DES-CBC',
             'key_size': DESHandler.KEY_SIZE * 8,  # bit
             'block_size': DESHandler.BLOCK_SIZE * 8,  # bit
-            'mode': 'CBC',
-            'description': 'Data Encryption Standard - zamonaviy standartlarda 3DES tavsiya etiladi',
+            'mode': 'CBC + HMAC-SHA-256',
+            'description': 'DES-CBC with HMAC-SHA-256 integrity protection; educational use only',
             'warning': 'DES zaif algoritm, faqat o\'quv maqsadida'
         }

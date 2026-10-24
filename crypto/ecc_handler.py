@@ -5,15 +5,16 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
-from Crypto.Cipher import AES
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.exceptions import InvalidTag
 from Crypto.Random import get_random_bytes
-from Crypto.Util.Padding import pad, unpad
 import struct
 
 class ECCHandler:
     CURVE = ec.SECP256R1()  # P-256
     KEY_SIZE = 32  # AES-256
-    BLOCK_SIZE = 16
+    NONCE_SIZE = 12
+    MAGIC = b'ECC1'
     
     @staticmethod
     def generate_keypair():
@@ -89,7 +90,7 @@ class ECCHandler:
             data: bytes - shifrlash uchun ma'lumot
             public_key_pem: str - public key (PEM format)
         Returns:
-            bytes: ephemeral_public_key + iv + encrypted_data
+            bytes: version marker + ephemeral key + nonce + authenticated ciphertext
         """
         # Recipient public key yuklash
         recipient_public_key = ECCHandler.load_public_key(public_key_pem)
@@ -116,25 +117,15 @@ class ECCHandler:
             backend=default_backend()
         ).derive(shared_key)
         
-        # AES-256-CBC bilan shifrlash
-        iv = get_random_bytes(ECCHandler.BLOCK_SIZE)
-        cipher = AES.new(aes_key, AES.MODE_CBC, iv)
-        padded_data = pad(data, ECCHandler.BLOCK_SIZE)
-        encrypted_data = cipher.encrypt(padded_data)
-        
         # Ephemeral public key'ni serialize qilish
         ephemeral_public_bytes = ephemeral_public_key.public_bytes(
             encoding=serialization.Encoding.X962,
             format=serialization.PublicFormat.UncompressedPoint
         )
-        
-        # Natija: [ephemeral_pub_key_len(2)] + ephemeral_pub_key + iv + encrypted_data
-        result = struct.pack('H', len(ephemeral_public_bytes))
-        result += ephemeral_public_bytes
-        result += iv
-        result += encrypted_data
-        
-        return result
+        nonce = get_random_bytes(ECCHandler.NONCE_SIZE)
+        header = ECCHandler.MAGIC + struct.pack('>H', len(ephemeral_public_bytes)) + ephemeral_public_bytes
+        ciphertext = AESGCM(aes_key).encrypt(nonce, data, ECCHandler.MAGIC)
+        return header + nonce + ciphertext
     
     @staticmethod
     def decrypt(encrypted_data, private_key_pem):
@@ -149,28 +140,26 @@ class ECCHandler:
         """
         # Private key yuklash
         private_key = ECCHandler.load_private_key(private_key_pem)
-        
-        # Ephemeral public key'ni ajratish
-        offset = 0
-        ephemeral_pub_len = struct.unpack('H', encrypted_data[offset:offset+2])[0]
-        offset += 2
-        
-        ephemeral_public_bytes = encrypted_data[offset:offset+ephemeral_pub_len]
-        offset += ephemeral_pub_len
-        
-        # Ephemeral public key'ni deserialize qilish
+
+        if not isinstance(private_key, ec.EllipticCurvePrivateKey):
+            raise ValueError('ECC private key talab qilinadi.')
+
+        if not encrypted_data.startswith(ECCHandler.MAGIC):
+            raise ValueError(
+                'Eski yoki noma’lum ECC format: autentifikatsiyalangan GCM fayli talab qilinadi.'
+            )
+        if len(encrypted_data) < 6:
+            raise ValueError('ECC shifrlangan fayl formati noto‘g‘ri.')
+        ephemeral_pub_len = struct.unpack('>H', encrypted_data[4:6])[0]
+        offset = 6 + ephemeral_pub_len
+        if len(encrypted_data) < offset + ECCHandler.NONCE_SIZE + 16:
+            raise ValueError('ECC shifrlangan fayl to‘liq emas.')
+        ephemeral_public_bytes = encrypted_data[6:offset]
         ephemeral_public_key = ec.EllipticCurvePublicKey.from_encoded_point(
-            ECCHandler.CURVE,
+            private_key.curve,
             ephemeral_public_bytes
         )
-        
-        # ECDH: shared secret hisoblash
-        shared_key = private_key.exchange(
-            ec.ECDH(),
-            ephemeral_public_key
-        )
-        
-        # KDF: AES kalitni hosil qilish
+        shared_key = private_key.exchange(ec.ECDH(), ephemeral_public_key)
         aes_key = HKDF(
             algorithm=hashes.SHA256(),
             length=ECCHandler.KEY_SIZE,
@@ -178,21 +167,12 @@ class ECCHandler:
             info=b'encryption',
             backend=default_backend()
         ).derive(shared_key)
-        
-        # IV va ciphertext ajratish
-        iv = encrypted_data[offset:offset+ECCHandler.BLOCK_SIZE]
-        offset += ECCHandler.BLOCK_SIZE
-        ciphertext = encrypted_data[offset:]
-        
-        # AES bilan deshifrlash
-        cipher = AES.new(aes_key, AES.MODE_CBC, iv)
-        decrypted_padded = cipher.decrypt(ciphertext)
-        
+        nonce = encrypted_data[offset:offset + ECCHandler.NONCE_SIZE]
+        ciphertext = encrypted_data[offset + ECCHandler.NONCE_SIZE:]
         try:
-            decrypted_data = unpad(decrypted_padded, ECCHandler.BLOCK_SIZE)
-            return decrypted_data
-        except ValueError:
-            raise ValueError("❌ Private key noto'g'ri yoki fayl buzilgan.")
+            return AESGCM(aes_key).decrypt(nonce, ciphertext, ECCHandler.MAGIC)
+        except InvalidTag as exc:
+            raise ValueError('Private key noto‘g‘ri yoki fayl buzilgan.') from exc
     
     @staticmethod
     def get_info():

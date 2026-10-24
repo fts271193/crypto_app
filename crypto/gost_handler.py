@@ -1,144 +1,104 @@
 """
-GOST Kuznechik shifrlash va deshifrlash
-ESLATMA: Haqiqiy GOST Kuznechik o'rniga AES-256 ishlatiladi
-chunki gostcrypto kutubxonasi barcha muhitlarda ishlamasligi mumkin.
+GOST Kuznechik (GOST R 34.12-2015) CBC shifrlash va deshifrlash.
 """
-from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
 import binascii
+import secrets
+
+import gostcrypto
+
+from crypto.authenticated_cbc import AuthenticatedCBC
+
 
 class GOSTHandler:
-    """
-    GOST Kuznechik Handler
-    
-    MUHIM: Bu implementatsiya haqiqiy GOST R 34.12-2015 standarti o'rniga
-    AES-256-CBC dan foydalanadi, chunki gostcrypto kutubxonasi barcha
-    platformalarda ishlamasligi mumkin.
-    
-    O'quv maqsadlari uchun bu yetarli, lekin ishlab chiqarish muhitida
-    haqiqiy GOST implementatsiyasidan foydalanish kerak.
-    """
-    KEY_SIZE = 32  # 256 bit
-    BLOCK_SIZE = 16  # 128 bit
-    
+    """GOST Kuznechik handler."""
+
+    KEY_SIZE = 32
+    BLOCK_SIZE = 16
+    MAGIC = b'GOST1'
+
     @staticmethod
     def generate_key():
-        """Tasodifiy kalit generatsiya"""
-        key = get_random_bytes(GOSTHandler.KEY_SIZE)
-        return binascii.hexlify(key).decode('utf-8')
-    
+        """Tasodifiy 256-bit kalitni hex formatda generatsiya qilish."""
+        return secrets.token_bytes(GOSTHandler.KEY_SIZE).hex()
+
     @staticmethod
     def key_from_hex(hex_key):
-        """Hex string'dan kalit olish"""
+        """Hex string'dan kalit olish."""
         try:
             return binascii.unhexlify(hex_key)
-        except (binascii.Error, ValueError) as e:
-            raise ValueError(f"Noto'g'ri hex format: {e}")
-    
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError(f"Noto'g'ri hex format: {exc}") from exc
+
     @staticmethod
-    def _pkcs7_pad(data, block_size):
-        """PKCS7 padding qo'shish"""
-        padding_length = block_size - (len(data) % block_size)
-        padding = bytes([padding_length] * padding_length)
-        return data + padding
-    
+    def _new_cipher(key, iv):
+        return gostcrypto.gostcipher.new(
+            'kuznechik',
+            bytearray(key),
+            gostcrypto.gostcipher.MODE_CBC,
+            init_vect=bytearray(iv),
+            pad_mode=gostcrypto.gostcipher.PAD_MODE_2,
+        )
+
     @staticmethod
-    def _pkcs7_unpad(data):
-        """PKCS7 padding olib tashlash"""
-        padding_length = data[-1]
-        
-        # Validatsiya
-        if padding_length > len(data) or padding_length == 0:
+    def _remove_padding(data):
+        marker = data.rfind(b'\x80')
+        if marker < 0 or any(data[marker + 1:]):
             raise ValueError("Noto'g'ri padding")
-        
-        for i in range(padding_length):
-            if data[-(i + 1)] != padding_length:
-                raise ValueError("Noto'g'ri padding")
-        
-        return data[:-padding_length]
-    
+        return data[:marker]
+
     @staticmethod
     def encrypt(data, hex_key):
         """
-        Ma'lumotni shifrlash
-        
-        ESLATMA: AES-256-CBC ishlatiladi (GOST emas)
-        
-        Args:
-            data: bytes - shifrlash uchun ma'lumot
-            hex_key: str - hex formatdagi kalit (64 belgi)
+        Ma'lumotni Kuznechik-CBC bilan shifrlash.
+
         Returns:
-            tuple: (encrypted_data, iv_hex)
+            tuple: (authenticated envelope, IV hex)
         """
-        # Kalitni bytes'ga aylantirish
         key = GOSTHandler.key_from_hex(hex_key)
-        
         if len(key) != GOSTHandler.KEY_SIZE:
-            raise ValueError(f"Kalit uzunligi {GOSTHandler.KEY_SIZE} bayt bo'lishi kerak")
-        
-        # IV generatsiya
-        iv = get_random_bytes(GOSTHandler.BLOCK_SIZE)
-        
-        # Padding
-        padded_data = GOSTHandler._pkcs7_pad(data, GOSTHandler.BLOCK_SIZE)
-        
-        # AES cipher yaratish (GOST o'rniga)
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        
-        # Shifrlash
-        encrypted_data = cipher.encrypt(padded_data)
-        
-        # IV + encrypted_data
-        result = iv + encrypted_data
-        iv_hex = binascii.hexlify(iv).decode('utf-8')
-        
-        return result, iv_hex
-    
+            raise ValueError(
+                f"Kalit uzunligi {GOSTHandler.KEY_SIZE} bayt bo'lishi kerak"
+            )
+
+        iv = secrets.token_bytes(GOSTHandler.BLOCK_SIZE)
+        cipher = GOSTHandler._new_cipher(key, iv)
+        encrypted_data = bytes(cipher.encrypt(bytearray(data)))
+        envelope = AuthenticatedCBC.pack(
+            GOSTHandler.MAGIC, key, iv, encrypted_data
+        )
+        return envelope, iv.hex()
+
     @staticmethod
     def decrypt(encrypted_data, hex_key):
-        """
-        Ma'lumotni deshifrlash
-        
-        ESLATMA: AES-256-CBC ishlatiladi (GOST emas)
-        
-        Args:
-            encrypted_data: bytes - shifrlangan ma'lumot (IV + ciphertext)
-            hex_key: str - hex formatdagi kalit
-        Returns:
-            bytes: deshifrlangan ma'lumot
-        """
-        # Kalitni bytes'ga aylantirish
+        """Authenticate and decrypt a Kuznechik-CBC envelope."""
         key = GOSTHandler.key_from_hex(hex_key)
-        
         if len(key) != GOSTHandler.KEY_SIZE:
-            raise ValueError(f"Kalit uzunligi {GOSTHandler.KEY_SIZE} bayt bo'lishi kerak")
-        
-        # IV ni ajratish
-        iv = encrypted_data[:GOSTHandler.BLOCK_SIZE]
-        ciphertext = encrypted_data[GOSTHandler.BLOCK_SIZE:]
-        
-        # AES cipher yaratish (GOST o'rniga)
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        
-        # Deshifrlash
-        decrypted_data = cipher.decrypt(ciphertext)
-        
-        # Padding olib tashlash
+            raise ValueError(
+                f"Kalit uzunligi {GOSTHandler.KEY_SIZE} bayt bo'lishi kerak"
+            )
+        iv, ciphertext = AuthenticatedCBC.unpack(
+            encrypted_data,
+            GOSTHandler.MAGIC,
+            key,
+            GOSTHandler.BLOCK_SIZE,
+            GOSTHandler.BLOCK_SIZE,
+        )
+
+        cipher = GOSTHandler._new_cipher(key, iv)
         try:
-            unpadded_data = GOSTHandler._pkcs7_unpad(decrypted_data)
-            return unpadded_data
-        except ValueError as e:
-            raise ValueError("❌ Kalit noto'g'ri yoki fayl buzilgan.")
-    
+            decrypted_data = bytes(cipher.decrypt(bytearray(ciphertext)))
+            return GOSTHandler._remove_padding(decrypted_data)
+        except (ValueError, gostcrypto.gostcipher.GOSTCipherError) as exc:
+            raise ValueError("Kalit noto'g'ri yoki fayl buzilgan.") from exc
+
     @staticmethod
     def get_info():
-        """Algoritm haqida ma'lumot"""
+        """Algoritm haqida ma'lumot."""
         return {
-            'name': 'GOST Kuznechik (AES-256 Mode)',
-            'key_size': GOSTHandler.KEY_SIZE * 8,  # bit
-            'block_size': GOSTHandler.BLOCK_SIZE * 8,  # bit
-            'mode': 'CBC',
-            'standard': 'GOST R 34.12-2015 (emulated with AES-256)',
-            'description': 'GOST standarti (AES-256 bilan emulatsiya qilingan)',
-            'note': 'Haqiqiy GOST o\'rniga AES-256 ishlatiladi (mos muhit uchun)'
+            'name': 'GOST Kuznechik',
+            'key_size': GOSTHandler.KEY_SIZE * 8,
+            'block_size': GOSTHandler.BLOCK_SIZE * 8,
+            'mode': 'CBC + HMAC-SHA-256',
+            'standard': 'GOST R 34.12-2015',
+            'description': 'GOST Kuznechik-CBC with HMAC-SHA-256 integrity protection',
         }

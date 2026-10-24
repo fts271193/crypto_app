@@ -14,7 +14,10 @@ class Validator:
         'code': ['.py', '.java', '.cpp', '.js', '.html', '.css'],
         'database': ['.db', '.sql'],
         'archive': ['.zip', '.rar', '.7z'],
-        'data': ['.json', '.xml']
+        'data': ['.json', '.xml'],
+        'image': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tif', '.tiff', '.heic'],
+        'audio': ['.mp3', '.wav', '.aac', '.flac', '.ogg', '.m4a', '.wma'],
+        'video': ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.webm', '.m4v', '.mpeg', '.mpg'],
     }
     
     # Kalit patternlari
@@ -23,6 +26,7 @@ class Validator:
         'DES': r'^[0-9a-fA-F]{16}$',  # 64 bit = 16 hex
         'GOST': r'^[0-9a-fA-F]{64}$', # 256 bit = 64 hex
         'GOST Kuznechik': r'^[0-9a-fA-F]{64}$', # 256 bit = 64 hex
+        'OZ_DST_1105': r'^[0-9a-fA-F]{128}$', # k || kf (512 bit)
     }
     
     MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
@@ -46,23 +50,11 @@ class Validator:
         if not path.is_file():
             return False, "❌ Bu fayl emas, katalog."
         
-        # Fayl formatini tekshirish
-        ext = path.suffix.lower()
-        all_formats = []
-        for formats in Validator.SUPPORTED_FORMATS.values():
-            all_formats.extend(formats)
-        
-        if ext not in all_formats:
-            return False, f"❌ Fayl formati qo'llab-quvvatlanmaydi: {ext}"
-        
         # Fayl hajmini tekshirish
         file_size = path.stat().st_size
         if file_size > Validator.MAX_FILE_SIZE:
             size_mb = file_size / (1024 * 1024)
             return False, f"❌ Fayl hajmi chegaradan oshdi: {size_mb:.2f} MB > 500 MB"
-        
-        if file_size == 0:
-            return False, "❌ Fayl bo'sh (0 bayt)"
         
         return True, ""
     
@@ -83,7 +75,9 @@ class Validator:
             expected_len = {
                 'AES': '64 hex belgi (256 bit)',
                 'DES': '16 hex belgi (64 bit)',
-                'GOST': '64 hex belgi (256 bit)'
+                'GOST': '64 hex belgi (256 bit)',
+                'GOST Kuznechik': '64 hex belgi (256 bit)',
+                'OZ_DST_1105': '128 hex belgi (512 bit, k || kf)'
             }
             return False, f"❌ Kalit formati noto'g'ri. {algorithm} uchun {expected_len[algorithm]} kerak."
         
@@ -124,9 +118,12 @@ class Validator:
         all_formats = Validator.get_all_supported_formats()
         formats_str = ' '.join(f'*{fmt}' for fmt in all_formats)
         return [
+            ("Barcha fayllar", "*.*"),
             ("Barcha qo'llab-quvvatlanadigan fayllar", formats_str),
             ("Matnli fayllar", "*.txt *.doc *.docx *.pdf"),
             ("Jadval fayllar", "*.xlsx *.xls *.csv"),
-            ("Kod fayllar", "*.py *.java *.cpp *.js *.html *.css"),
-            ("Barcha fayllar", "*.*")
+            ("Rasm fayllar", "*.jpg *.jpeg *.png *.gif *.bmp *.webp *.tif *.tiff *.heic"),
+            ("Audio fayllar", "*.mp3 *.wav *.aac *.flac *.ogg *.m4a *.wma"),
+            ("Video fayllar", "*.mp4 *.avi *.mkv *.mov *.wmv *.webm *.m4v *.mpeg *.mpg"),
+            ("Kod fayllar", "*.py *.java *.cpp *.js *.html *.css")
         ]
