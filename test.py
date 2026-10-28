@@ -3,13 +3,21 @@
 Test skripti - barcha kriptografik algoritmlarni test qilish
 """
 import sys
+import tempfile
 from pathlib import Path
+
+for output_stream in (sys.stdout, sys.stderr):
+    reconfigure = getattr(output_stream, 'reconfigure', None)
+    if reconfigure:
+        reconfigure(errors='replace')
 
 sys.path.insert(0, str(Path(__file__).parent))
 
 from crypto.aes_handler import AESHandler
 from crypto.des_handler import DESHandler
 from crypto.gost_handler import GOSTHandler
+from crypto.uzbek_standard_handler import UzbekStandardHandler
+from crypto.ozdst1105 import self_test as ozdst_self_test
 from crypto.ecc_handler import ECCHandler
 from utils.file_manager import FileManager
 from utils.metrics import Timer
@@ -58,36 +66,27 @@ def test_symmetric(algorithm_name, handler_class):
         file_manager = FileManager()
         
         # Test faylini yaratish
-        test_file = "test.txt"
-        with open(test_file, 'wb') as f:
-            f.write(test_data)
-        
-        # Faylni o'qish
-        file_data = file_manager.read_file(test_file)
-        print(f"   ✓ Fayl o'qildi: {len(file_data)} bayt")
-        
-        # Shifrlash
-        encrypted_file_data, _ = handler_class.encrypt(file_data, key)
-        
-        # Shifrlangan faylni saqlash
-        encrypted_file = f"test_{algorithm_name.replace(' ', '_')}.encrypted"
-        file_manager.write_file(encrypted_file, encrypted_file_data)
-        print(f"   ✓ Shifrlangan fayl: {encrypted_file}")
-        
-        # Deshifrlash
-        decrypted_file_data = handler_class.decrypt(encrypted_file_data, key)
-        
-        # Deshifrlangan faylni saqlash
-        decrypted_file = f"test_{algorithm_name.replace(' ', '_')}.decrypted.txt"
-        file_manager.write_file(decrypted_file, decrypted_file_data)
-        print(f"   ✓ Deshifrlangan fayl: {decrypted_file}")
-        
-        # Validatsiya
-        if decrypted_file_data == file_data:
+        with tempfile.TemporaryDirectory(prefix='crypto-app-test-') as temp_dir:
+            test_file = Path(temp_dir) / 'input.txt'
+            encrypted_file = Path(temp_dir) / 'encrypted.bin'
+            decrypted_file = Path(temp_dir) / 'decrypted.txt'
+            test_file.write_bytes(test_data)
+
+            file_data = file_manager.read_file(test_file)
+            print(f"   ✓ Fayl o'qildi: {len(file_data)} bayt")
+
+            encrypted_file_data, _ = handler_class.encrypt(file_data, key)
+            file_manager.write_file(encrypted_file, encrypted_file_data)
+            print("   ✓ Shifrlangan vaqtinchalik fayl yaratildi")
+
+            decrypted_file_data = handler_class.decrypt(
+                file_manager.read_file(encrypted_file), key
+            )
+            file_manager.write_file(decrypted_file, decrypted_file_data)
+            if decrypted_file.read_bytes() != file_data:
+                print("   ❌ FAYL TESTI MUVAFFAQIYATSIZ!")
+                return False
             print("   ✅ FAYL TESTI MUVAFFAQIYATLI!")
-        else:
-            print("   ❌ FAYL TESTI MUVAFFAQIYATSIZ!")
-            return False
         
         print(f"\n{'='*60}")
         print(f"✅ {algorithm_name} - BARCHA TESTLAR O'TDI!")
@@ -147,27 +146,22 @@ def test_ecc():
         print("\n6. Fayl bilan test...")
         file_manager = FileManager()
         
-        test_file = "test.txt"
-        file_data = file_manager.read_file(test_file)
-        
-        # Shifrlash
-        encrypted_file_data = handler.encrypt(file_data, public_pem)
-        encrypted_file = "test_ECC.encrypted"
-        file_manager.write_file(encrypted_file, encrypted_file_data)
-        print(f"   ✓ Shifrlangan fayl: {encrypted_file}")
-        
-        # Deshifrlash
-        decrypted_file_data = handler.decrypt(encrypted_file_data, private_pem)
-        decrypted_file = "test_ECC.decrypted.txt"
-        file_manager.write_file(decrypted_file, decrypted_file_data)
-        print(f"   ✓ Deshifrlangan fayl: {decrypted_file}")
-        
-        # Kalitlarni saqlash
-        with open("test_public.pem", 'w') as f:
-            f.write(public_pem)
-        with open("test_private.pem", 'w') as f:
-            f.write(private_pem)
-        print(f"   ✓ Kalitlar saqlandi: test_public.pem, test_private.pem")
+        with tempfile.TemporaryDirectory(prefix='crypto-app-ecc-test-') as temp_dir:
+            test_file = Path(temp_dir) / 'input.txt'
+            encrypted_file = Path(temp_dir) / 'encrypted.ecc'
+            decrypted_file = Path(temp_dir) / 'decrypted.txt'
+            test_file.write_bytes(test_data)
+            file_data = file_manager.read_file(test_file)
+            encrypted_file_data = handler.encrypt(file_data, public_pem)
+            file_manager.write_file(encrypted_file, encrypted_file_data)
+            decrypted_file_data = handler.decrypt(
+                file_manager.read_file(encrypted_file), private_pem
+            )
+            file_manager.write_file(decrypted_file, decrypted_file_data)
+            if decrypted_file.read_bytes() != file_data:
+                print("   ❌ ECC FAYL TESTI MUVAFFAQIYATSIZ!")
+                return False
+            print("   ✓ ECC fayl sinovi vaqtinchalik katalogda o'tdi")
         
         print(f"\n{'='*60}")
         print(f"✅ ECC - BARCHA TESTLAR O'TDI!")
@@ -179,6 +173,13 @@ def test_ecc():
         import traceback
         traceback.print_exc()
         return False
+
+
+def test_ozdst1105():
+    """O'z DSt nazorat vektori va fayl round-trip testlari."""
+    if not ozdst_self_test(verbose=True):
+        return False
+    return test_symmetric("O'z DSt 1105", UzbekStandardHandler)
 
 
 def main():
@@ -197,6 +198,7 @@ def main():
     
     # GOST test
     results.append(("GOST Kuznechik", test_symmetric("GOST Kuznechik", GOSTHandler)))
+    results.append(("O'z DSt 1105:2009", test_ozdst1105()))
     
     # ECC test
     results.append(("ECC", test_ecc()))
