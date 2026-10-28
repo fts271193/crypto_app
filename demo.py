@@ -28,7 +28,7 @@ def demo_aes():
     print("\n📝 1. Test fayl yaratish...")
     test_data = """
 Bu test fayli.
-AES-256-GCM algoritmi bilan shifrlanadi.
+AES-256-CBC algoritmi bilan shifrlanadi.
 Kalit uzunligi: 256 bit (64 hex belgi)
     """.strip()
     

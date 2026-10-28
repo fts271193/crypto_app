@@ -1,20 +1,19 @@
-"""AES-256-GCM authenticated encryption and decryption."""
+"""
+AES-256-CBC shifrlash va deshifrlash
+"""
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+from Crypto.Util.Padding import pad, unpad
 import binascii
-import secrets
-
-from cryptography.exceptions import InvalidTag
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 class AESHandler:
-    KEY_SIZE = 32
-    BLOCK_SIZE = 16
-    NONCE_SIZE = 12
-    MAGIC = b'AESG1'
+    KEY_SIZE = 32  # 256 bit
+    BLOCK_SIZE = 16  # 128 bit
     
     @staticmethod
     def generate_key():
-        """Tasodifiy 256-bit kalit generatsiya."""
-        key = secrets.token_bytes(AESHandler.KEY_SIZE)
+        """Tasodifiy kalit generatsiya"""
+        key = get_random_bytes(AESHandler.KEY_SIZE)
         return binascii.hexlify(key).decode('utf-8')
     
     @staticmethod
@@ -27,48 +26,74 @@ class AESHandler:
     
     @staticmethod
     def encrypt(data, hex_key):
+        """
+        Ma'lumotni shifrlash
+        Args:
+            data: bytes - shifrlash uchun ma'lumot
+            hex_key: str - hex formatdagi kalit (64 belgi)
+        Returns:
+            tuple: (encrypted_data, iv_hex)
+        """
+        # Kalitni bytes'ga aylantirish
         key = AESHandler.key_from_hex(hex_key)
+        
         if len(key) != AESHandler.KEY_SIZE:
             raise ValueError(f"Kalit uzunligi {AESHandler.KEY_SIZE} bayt bo'lishi kerak")
-
-        nonce = secrets.token_bytes(AESHandler.NONCE_SIZE)
-        ciphertext = AESGCM(key).encrypt(nonce, data, AESHandler.MAGIC)
-        return AESHandler.MAGIC + nonce + ciphertext, nonce.hex()
+        
+        # IV generatsiya
+        iv = get_random_bytes(AESHandler.BLOCK_SIZE)
+        
+        # Cipher yaratish
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        
+        # Padding va shifrlash
+        padded_data = pad(data, AESHandler.BLOCK_SIZE)
+        encrypted_data = cipher.encrypt(padded_data)
+        
+        # IV + encrypted_data
+        result = iv + encrypted_data
+        iv_hex = binascii.hexlify(iv).decode('utf-8')
+        
+        return result, iv_hex
     
     @staticmethod
     def decrypt(encrypted_data, hex_key):
+        """
+        Ma'lumotni deshifrlash
+        Args:
+            encrypted_data: bytes - shifrlangan ma'lumot (IV + ciphertext)
+            hex_key: str - hex formatdagi kalit
+        Returns:
+            bytes: deshifrlangan ma'lumot
+        """
+        # Kalitni bytes'ga aylantirish
         key = AESHandler.key_from_hex(hex_key)
+        
         if len(key) != AESHandler.KEY_SIZE:
             raise ValueError(f"Kalit uzunligi {AESHandler.KEY_SIZE} bayt bo'lishi kerak")
-
-        minimum_size = len(AESHandler.MAGIC) + AESHandler.NONCE_SIZE + 16
-        if not encrypted_data.startswith(AESHandler.MAGIC):
-            raise ValueError(
-                'Eski yoki noma’lum AES formati: autentifikatsiyalangan GCM fayli talab qilinadi.'
-            )
-        if len(encrypted_data) < minimum_size:
-            raise ValueError('Shifrlangan ma’lumot to‘liq emas yoki buzilgan.')
-
-        nonce_start = len(AESHandler.MAGIC)
-        nonce_end = nonce_start + AESHandler.NONCE_SIZE
-        nonce = encrypted_data[nonce_start:nonce_end]
+        
+        # IV ni ajratish
+        iv = encrypted_data[:AESHandler.BLOCK_SIZE]
+        ciphertext = encrypted_data[AESHandler.BLOCK_SIZE:]
+        
+        # Deshifrlash
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        decrypted_data = cipher.decrypt(ciphertext)
+        
+        # Padding olib tashlash
         try:
-            return AESGCM(key).decrypt(
-                nonce,
-                encrypted_data[nonce_end:],
-                AESHandler.MAGIC,
-            )
-        except InvalidTag as exc:
-            raise ValueError('Kalit noto‘g‘ri yoki fayl buzilgan.') from exc
+            unpadded_data = unpad(decrypted_data, AESHandler.BLOCK_SIZE)
+            return unpadded_data
+        except ValueError as e:
+            raise ValueError("❌ Kalit noto'g'ri yoki fayl buzilgan.")
     
     @staticmethod
     def get_info():
         """Algoritm haqida ma'lumot"""
         return {
-            'name': 'AES-256-GCM',
+            'name': 'AES-256-CBC',
             'key_size': AESHandler.KEY_SIZE * 8,  # bit
-            'block_size': AESHandler.BLOCK_SIZE * 8,
-            'nonce_size': AESHandler.NONCE_SIZE * 8,
-            'mode': 'GCM',
-            'description': 'AES-256-GCM authenticated encryption'
+            'block_size': AESHandler.BLOCK_SIZE * 8,  # bit
+            'mode': 'CBC',
+            'description': 'Advanced Encryption Standard - eng xavfsiz simmetrik algoritm'
         }

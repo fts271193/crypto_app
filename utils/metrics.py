@@ -1,146 +1,128 @@
-"""Ishlash vaqtlarini va takroriy kriptografik o'lchovlarni qayd etish."""
-import csv
-import math
+"""
+Performance metrics moduli - vaqt va tezlikni o'lchash
+"""
 import time
 from datetime import datetime
 
-
 class PerformanceMetrics:
-    SAMPLE_COUNT = 5
-
     def __init__(self):
-        self.file_size = 0
-        self.read_time = 0.0
-        self.key_prep_time = 0.0
-        self.encrypt_time = 0.0
-        self.decrypt_time = 0.0
-        self.write_time = 0.0
-        self.total_time = 0.0
-        self.speed = 0.0
-        self.operation_std = 0.0
-        self.sample_count = 0
-        self.operation_time = 0.0
-        self.algorithm = ''
-        self.filename = ''
-        self.output_filename = ''
-        self.iv = ''
+        self.file_size = 0  # Bayt
+        self.read_time = 0  # Soniya
+        self.key_prep_time = 0  # Kalit tayyorlash vaqti
+        self.encrypt_time = 0  # Shifrlash vaqti
+        self.decrypt_time = 0  # Deshifrlash vaqti
+        self.write_time = 0  # Yozish vaqti
+        self.total_time = 0  # Umumiy vaqt
+        self.speed = 0  # MB/s
+        
+        self.algorithm = ""
+        self.filename = ""
+        self.output_filename = ""
+        self.iv = ""  # Initialization Vector
+        
         self.start_time = None
         self.end_time = None
-
+    
     def start_timer(self):
-        self.start_time = time.perf_counter()
-
+        """Umumiy taymer boshlash"""
+        self.start_time = time.time()
+    
     def stop_timer(self):
-        if self.start_time is None:
-            raise RuntimeError('Umumiy taymer ishga tushirilmagan.')
-        self.end_time = time.perf_counter()
-        self.total_time = self.end_time - self.start_time
-
-    def record_operation_times(self, durations, operation):
-        if not durations or any(duration < 0 for duration in durations):
-            raise ValueError('O‘lchov vaqtlari bo‘sh yoki manfiy bo‘lmasligi kerak.')
-        mean = sum(durations) / len(durations)
-        variance = sum((duration - mean) ** 2 for duration in durations) / len(durations)
-        self.operation_time = mean
-        self.operation_std = math.sqrt(variance)
-        self.sample_count = len(durations)
-        if operation == 'encrypt':
-            self.encrypt_time = mean
-        elif operation == 'decrypt':
-            self.decrypt_time = mean
-        else:
-            raise ValueError(f'Noma’lum kriptografik amal: {operation}')
-        self.calculate_speed()
-
+        """Umumiy taymerni to'xtatish"""
+        if self.start_time:
+            self.end_time = time.time()
+            self.total_time = self.end_time - self.start_time
+            self.calculate_speed()
+    
     def calculate_speed(self):
-        self.speed = (
-            self.file_size / self.operation_time / (1024 * 1024)
-            if self.operation_time > 0 else 0.0
-        )
-
-    @staticmethod
-    def format_size(size_bytes):
-        size = float(size_bytes)
-        for unit in ('B', 'KB', 'MB', 'GB'):
-            if size < 1024.0:
-                return f'{size:.2f} {unit}'
-            size /= 1024.0
-        return f'{size:.2f} TB'
-
+        """Tezlikni hisoblash (MB/s)"""
+        if self.total_time > 0:
+            self.speed = self.file_size / self.total_time / (1024 * 1024)
+        else:
+            self.speed = 0
+    
+    def format_size(self, size_bytes):
+        """Hajmni formatlash"""
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size_bytes < 1024.0:
+                return f"{size_bytes:.2f} {unit}"
+            size_bytes /= 1024.0
+        return f"{size_bytes:.2f} TB"
+    
     def get_summary(self):
+        """Qisqacha natijalar"""
         return {
             'algorithm': self.algorithm,
             'filename': self.filename,
             'file_size': self.file_size,
             'file_size_formatted': self.format_size(self.file_size),
-            'read_time': self.read_time,
-            'key_prep_time': self.key_prep_time,
-            'encrypt_time': self.encrypt_time,
-            'decrypt_time': self.decrypt_time,
-            'operation_std': self.operation_std,
-            'sample_count': self.sample_count,
-            'write_time': self.write_time,
-            'total_time': self.total_time,
-            'speed': self.speed,
+            'read_time': round(self.read_time, 3),
+            'key_prep_time': round(self.key_prep_time, 3),
+            'encrypt_time': round(self.encrypt_time, 3),
+            'decrypt_time': round(self.decrypt_time, 3),
+            'write_time': round(self.write_time, 3),
+            'total_time': round(self.total_time, 3),
+            'speed': round(self.speed, 2),
             'iv': self.iv,
             'output_file': self.output_filename,
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
-
+    
     def get_detailed_report(self):
+        """Batafsil hisobot"""
         summary = self.get_summary()
-        operation_label = 'Shifrlash' if self.encrypt_time else 'Deshifrlash'
-        operation_time = self.encrypt_time or self.decrypt_time
-        return (
-            '\n=== KRIPTOGRAFIK O‘LCHOVLAR ===\n'
-            f'Algoritm: {summary["algorithm"]}\n'
-            f'Fayl: {summary["filename"]}\n'
-            f'Asl hajm: {self.file_size:,} bayt ({summary["file_size_formatted"]})\n'
-            f'Faylni o‘qish: {self.read_time:.6f} s\n'
-            f'Kalitni tayyorlash: {self.key_prep_time:.6f} s\n'
-            f'{operation_label}: {operation_time:.6f} s '
-            f'(o‘rtacha {self.sample_count} takror, og‘ish {self.operation_std:.6f} s)\n'
-            f'Faylni yozish: {self.write_time:.6f} s\n'
-            f'Umumiy vaqt (disk bilan): {self.total_time:.6f} s\n'
-            f'Kripto amali tezligi: {self.speed:.2f} MB/s\n'
-            f'Natija: {self.output_filename}\n'
-            f'Sana: {summary["timestamp"]}\n'
-        )
+        
+        report = f"""
+=== SHIFRLASH NATIJALARI ===
+Algoritm: {summary['algorithm']}
+Fayl: {summary['filename']}
+Asl hajm: {self.file_size:,} bayt ({summary['file_size_formatted']})
 
-    def export_to_csv(self, path):
+--- VAQT TAFSILOTLARI ---
+Faylni o'qish: {summary['read_time']} s
+Kalit tayyorlash: {summary['key_prep_time']} s
+Shifrlash: {summary['encrypt_time']} s
+Faylni yozish: {summary['write_time']} s
+─────────────────────────
+Umumiy vaqt: {summary['total_time']} s
+Tezlik: {summary['speed']} MB/s
+"""
+        if summary['iv']:
+            report += f"IV (hex): {summary['iv']}\n"
+        
+        report += f"Natija: {summary['output_file']}\n"
+        report += f"Sana: {summary['timestamp']}\n"
+        
+        return report
+    
+    def export_to_csv(self):
+        """CSV formatida qaytarish"""
         summary = self.get_summary()
-        row = {
+        return {
             'Sana': summary['timestamp'].split()[0],
             'Vaqt': summary['timestamp'].split()[1],
             'Algoritm': summary['algorithm'],
             'Fayl': summary['filename'],
-            'Hajm(MB)': self.file_size / (1024 * 1024),
-            'Kalit tayyorlash(s)': self.key_prep_time,
-            'Shifrlash(s)': self.encrypt_time,
-            'Deshifrlash(s)': self.decrypt_time,
-            'Takrorlar': self.sample_count,
-            'Standart og‘ish(s)': self.operation_std,
-            'Yozish(s)': self.write_time,
-            'Umumiy(s)': self.total_time,
-            'Kripto tezligi(MB/s)': self.speed,
+            'Hajm(MB)': round(self.file_size / (1024 * 1024), 2),
+            'O\'qish(s)': summary['read_time'],
+            'Shifrlash(s)': summary['encrypt_time'],
+            'Yozish(s)': summary['write_time'],
+            'Umumiy(s)': summary['total_time'],
+            'Tezlik(MB/s)': summary['speed']
         }
-        with open(path, 'w', newline='', encoding='utf-8-sig') as csv_file:
-            writer = csv.DictWriter(csv_file, fieldnames=row.keys())
-            writer.writeheader()
-            writer.writerow(row)
-
 
 class Timer:
+    """Vaqtni o'lchash uchun yordamchi klass"""
     def __init__(self):
         self.start = None
-        self.elapsed = 0.0
-
+        self.elapsed = 0
+    
     def __enter__(self):
-        self.start = time.perf_counter()
+        self.start = time.time()
         return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.elapsed = time.perf_counter() - self.start
-
+    
+    def __exit__(self, *args):
+        self.elapsed = time.time() - self.start
+    
     def get_elapsed(self):
         return self.elapsed

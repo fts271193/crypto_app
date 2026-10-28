@@ -13,21 +13,21 @@
 ## ✅ Amalga Oshirilgan Funksiyalar
 
 ### 1. Simmetrik Shifrlash Algoritmlari
-- ✅ **AES-256-GCM**: autentifikatsiyalangan shifrlash
-- ✅ **DES-CBC + HMAC-SHA-256**: faqat o'quv maqsadida; DES eskirgan
-- ✅ **GOST Kuznechik-CBC + HMAC-SHA-256**: GOST R 34.12-2015
+- ✅ **AES-256-CBC**: Advanced Encryption Standard (eng xavfsiz)
+- ✅ **DES-CBC**: Data Encryption Standard (tarixiy)
+- ✅ **GOST Kuznechik**: Rossiya milliy standarti (GOST R 34.12-2015)
 
 ### 2. Assimmetrik Shifrlash
 - ✅ **ECC (ECIES)**: Elliptic Curve Integrated Encryption Scheme
   - Egri chiziq: secp256r1 (P-256)
-  - Hybrid shifrlash: ECC + AES-256-GCM
+  - Hybrid shifrlash: ECC + AES-256
 
 ### 3. Foydalanuvchi Interfeyslari
 - ✅ **CLI (Command Line Interface)**: Terminal orqali to'liq funksional dastur
 - ✅ **GUI (Grafik Interfeys)**: CustomTkinter asosida (kod tayyor, kutubxonalar talab qilinadi)
 
 ### 4. Kalit Boshqaruvi
-- ✅ Saqlangan kalitlar AES-GCM bilan himoyalanadi; Windows'da master kalit DPAPI bilan himoyalangan
+- ✅ Kalitlarni xavfsiz saqlash (AES-256 bilan shifrlangan)
 - ✅ Avtomatik kalit generatsiya
 - ✅ Kalit validatsiyasi
 - ✅ Kalit tarixini saqlash (oxirgi 10 ta)
@@ -40,14 +40,14 @@
 - ✅ Avtomatik chiqish fayl nomlari
 
 ### 6. Performance Monitoring
-- ✅ Kriptografik amalni besh marta takrorlab, o'rtacha vaqt va standart og'ishni hisoblash
-- ✅ Kripto tezligini diskdagi o'qish-yozish vaqtidan alohida hisoblash
+- ✅ Vaqt o'lchash (o'qish, shifrlash, yozish)
+- ✅ Tezlik hisoblash (MB/s)
 - ✅ Batafsil hisobotlar
 - ✅ CSV eksport
 
 ### 7. Xavfsizlik Xususiyatlari
 - ✅ Secure random generator (IV va kalitlar uchun)
-- ✅ Kalitlar ishlov paytida xotirada bo'ladi; xotiradan to'liq o'chirish kafolatlanmaydi
+- ✅ Kalitlarni xotirada saqlamaslik
 - ✅ Master kalit bilan kalit boshqaruvi
 - ✅ Padding va validatsiya
 
@@ -110,7 +110,7 @@ crypto_app/
 ### ✅ To'liq Amalga Oshirilgan
 
 1. **Algoritmlar (100%)**
-   - ✅ AES-256-GCM
+   - ✅ AES-256-CBC
    - ✅ DES-CBC
    - ✅ GOST Kuznechik
    - ✅ ECC ECIES

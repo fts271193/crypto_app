@@ -96,9 +96,6 @@ def symmetric_encrypt(algorithm_name, handler_class):
     custom_output = input(f"\nChiqish fayli [{output_path}]: ").strip()
     if custom_output:
         output_path = custom_output
-    if os.path.abspath(output_path) == os.path.abspath(file_path):
-        print("Xato: natija fayli manba fayl bilan bir xil bo‘la olmaydi.")
-        return
     
     # Shifrlash
     print("\n🔄 Shifrlash boshlanmoqda...")
@@ -118,30 +115,15 @@ def symmetric_encrypt(algorithm_name, handler_class):
         
         print(f"  ✓ Fayl o'qildi: {metrics.format_size(metrics.file_size)}")
         
+        # Shifrlash
         with Timer() as t:
-            handler_class.key_from_hex(key)
-        metrics.key_prep_time = t.get_elapsed()
-        encryption_times = []
-        encrypted_data = iv = None
-        for _ in range(metrics.SAMPLE_COUNT):
-            with Timer() as t:
-                encrypted_data, iv = handler_class.encrypt(file_data, key)
-            encryption_times.append(t.get_elapsed())
-        metrics.record_operation_times(encryption_times, 'encrypt')
+            encrypted_data, iv = handler_class.encrypt(file_data, key)
+        metrics.encrypt_time = t.get_elapsed()
         metrics.iv = iv
         
-        print(
-            f"  ✓ Shifrlandi: {metrics.encrypt_time:.6f} ± "
-            f"{metrics.operation_std:.6f} s "
-            f"(n={metrics.sample_count})"
-        )
+        print(f"  ✓ Shifrlandi: {metrics.encrypt_time:.3f} s")
         
         # Yozish
-        if os.path.exists(output_path):
-            overwrite = input(f"{output_path} mavjud. Ustiga yozilsinmi? (y/n): ").strip().lower()
-            if overwrite != 'y':
-                print("Amal bekor qilindi.")
-                return
         with Timer() as t:
             file_manager.write_file(output_path, encrypted_data)
         metrics.write_time = t.get_elapsed()
@@ -304,14 +286,6 @@ def decrypt_file():
             if custom_output:
                 output_path = custom_output
             
-            if os.path.abspath(output_path) == os.path.abspath(file_path):
-                print("Xato: natija fayli manba fayl bilan bir xil bo‘la olmaydi.")
-                return
-            if os.path.exists(output_path):
-                overwrite = input(f"{output_path} mavjud. Ustiga yozilsinmi? (y/n): ").strip().lower()
-                if overwrite != 'y':
-                    print("Amal bekor qilindi.")
-                    return
             file_manager.write_file(output_path, decrypted_data)
             print(f"\n✅ Deshifrlandi: {output_path}")
             
@@ -339,14 +313,6 @@ def decrypt_file():
             if custom_output:
                 output_path = custom_output
             
-            if os.path.abspath(output_path) == os.path.abspath(file_path):
-                print("Xato: natija fayli manba fayl bilan bir xil bo‘la olmaydi.")
-                return
-            if os.path.exists(output_path):
-                overwrite = input(f"{output_path} mavjud. Ustiga yozilsinmi? (y/n): ").strip().lower()
-                if overwrite != 'y':
-                    print("Amal bekor qilindi.")
-                    return
             file_manager.write_file(output_path, decrypted_data)
             print(f"\n✅ Deshifrlandi: {output_path}")
             

@@ -7,20 +7,17 @@ Turli xil kriptografik algoritmlar yordamida fayllarni shifrlash va deshifrlash 
 ### Qo'llab-quvvatlanadigan Algoritmlar
 
 #### Simmetrik Shifrlash
-- **AES-256-GCM**: authenticated encryption; ciphertext o'zgartirilsa yoki kalit noto'g'ri bo'lsa, deshifrlash rad etiladi
-- **DES-CBC + HMAC-SHA-256**: yaxlitlik tekshiruvi bilan, faqat o'quv maqsadida (DES eskirgan va zaif)
+- **AES-256-CBC**: Advanced Encryption Standard (eng xavfsiz)
+- **DES-CBC**: Data Encryption Standard (o'quv maqsadida)
 - **GOST Kuznechik**: Rossiya milliy standarti (GOST R 34.12-2015)
-  - Haqiqiy Kuznechik shifri, CBC rejimi, GOST padding usuli #2 va HMAC-SHA-256 yaxlitlik tekshiruvi
-  - `gostcrypto==1.2.5` kutubxonasi orqali ishlaydi
-- **O'z DSt 1105:2009**: CBC + HMAC-SHA-256 yaxlitlik tekshiruvi
+  - ⚠️ **Eslatma**: Ushbu versiyada GOST Kuznechik AES-256 bilan emulatsiya qilingan
+  - Sabab: `gostcrypto` kutubxonasi ba'zi platformalarda muammoli
+  - Shifrlash xavfsizligi bir xil (256-bit kalit)
 
 #### Assimmetrik Shifrlash
 - **ECC (ECIES)**: Elliptic Curve Integrated Encryption Scheme
   - Egri chiziq: secp256r1 (P-256)
   - Hybrid: ECC + AES-256-GCM
-
-Shifrlangan fayllar yaxlitlik tekshiruvi bilan versiyalangan formatda saqlanadi.
-Avvalgi autentifikatsiyasiz CBC/ECC fayllari xavfsizlik sababli deshifrlanmaydi.
 
 ### Qo'llab-quvvatlanadigan Fayl Turlari
 - ✅ Matnli fayllar: `.txt`, `.doc`, `.docx`, `.pdf`
@@ -106,27 +103,20 @@ python main.py
 
 ## 📊 Performance Ko'rsatkichlari
 
-Dastur har bir shifrlash/deshifrlash amalini besh marta takrorlab, kriptografik
-amalning o'rtacha vaqtini va standart og'ishini ko'rsatadi. Tezlik faqat
-shifrlash/deshifrlash vaqtiga qarab hisoblanadi; diskka o'qish-yozish vaqti
-alohida ko'rsatiladi. Umumiy vaqt disk amallarini ham o'z ichiga oladi.
-
-- Kalit formatini tayyorlash vaqti
+Dastur quyidagi ma'lumotlarni ko'rsatadi:
 - Fayl hajmi
 - O'qish vaqti
-- Kriptografik amalning o'rtacha vaqti hamda standart og'ishi
+- Shifrlash vaqti
 - Yozish vaqti
 - Umumiy vaqt
-- Kripto amali tezligi (MB/s)
-- O'lchovlarni CSV fayliga eksport qilish
+- Tezlik (MB/s)
 
 ## 🔒 Xavfsizlik
 
-- Saqlangan kalitlar AES-GCM bilan himoyalanadi; Windows'da master kalit DPAPI bilan joriy foydalanuvchiga bog'lanadi.
-- AES-GCM, ECC va CBC + HMAC formatlari o'zgartirilgan ciphertext yoki noto'g'ri kalitni aniqlaydi.
-- Eski autentifikatsiyasiz CBC/ECC fayllari ataylab ochilmaydi.
-- DES faqat o'quv maqsadida; maxfiy ma'lumotlar uchun ishlatmang.
-- Kalit ishlov vaqtida dastur xotirasida bo'ladi; xotiradan ishonchli o'chirildi deb kafolat berilmaydi.
+- ✅ Kalitlar AES-256 bilan shifrlangan holda saqlanadi
+- ✅ Secure random generator ishlatiladi
+- ✅ Kalitlar xotirada saqlanmaydi (ishlatilgandan keyin o'chiriladi)
+- ✅ Log fayllarida kalitlar saqlanmaydi
 
 ## 📁 Loyiha Strukturasi
 
